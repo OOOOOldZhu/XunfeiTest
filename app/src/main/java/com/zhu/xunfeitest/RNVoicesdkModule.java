@@ -1,10 +1,30 @@
 package com.zhu.xunfeitest;
 
-import androidx.appcompat.app.AppCompatActivity;
 
+import com.facebook.react.bridge.Arguments;
+import com.facebook.react.bridge.Promise;
+import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
+
+//语音识别所需要的包
+import android.annotation.SuppressLint;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
-import android.view.View;
+
+//import androidx.appcompat.app.AppCompatActivity;
+//import androidx.core.app.ActivityCompat;
+
+import android.Manifest;
+import android.os.Bundle;
+import android.os.Message;
+import android.util.Log;
 
 import com.iflytek.cloud.InitListener;
 import com.iflytek.cloud.RecognizerListener;
@@ -20,47 +40,57 @@ import org.json.JSONObject;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 
-public class MainActivity extends AppCompatActivity {
+public class RNVoicesdkModule extends ReactContextBaseJavaModule {
 
-    String TAG ="zhuzhu";
+    private static final String TAG = "zhu";
+    private ReactApplicationContext reactContext;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        findViewById(R.id.btn_start).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                mIat.startListening(mRecognizerListener);
-            }
-        });
-        findViewById(R.id.btn_stop).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (mIat != null) {
-                    mIat.stopListening();
-                    mIat.cancel();
-                }
-            }
-        });
-
-
+    public RNVoicesdkModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+        this.reactContext = reactContext;
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mIat != null) {
-            mIat.destroy();
+    public String getName() {
+        return "RNVoicesdk";
+    }
+
+    private void onJSEvent(String eventName, String msgString) {
+        if (reactContext != null) {
+            reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit(eventName, msgString);
         }
     }
 
+    private void onJSEvent(String eventName, WritableMap params) {
+        if (reactContext != null) {
+            reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                    .emit(eventName, params);
+        }
+    }
+
+    @ReactMethod
+    public void show(String message, int duration) {
+        android.widget.Toast.makeText(getReactApplicationContext(), message, duration).show();
+    }
+
     SpeechRecognizer mIat;
-    void init(){
-        SpeechUtility.createUtility(this, SpeechConstant.APPID + "=5f08428f");
+
+    @ReactMethod
+    private void init() {
+//        ActivityCompat.requestPermissions(reactContext,
+//                new String[]{
+//                        Manifest.permission.RECORD_AUDIO,
+//                        Manifest.permission.READ_EXTERNAL_STORAGE,
+//                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+//                        Manifest.permission.INTERNET,
+//                        Manifest.permission.ACCESS_NETWORK_STATE,
+//                },
+//                110);
+        SpeechUtility.createUtility(reactContext, SpeechConstant.APPID + "=5f08428f");
         //初始化识别无UI识别对象
         //使用SpeechRecognizer对象，可根据回调消息自定义界面；
-        mIat = SpeechRecognizer.createRecognizer(this, new InitListener() {
+        mIat = SpeechRecognizer.createRecognizer(reactContext, new InitListener() {
             @Override
             public void onInit(int code) {
                 Log.i(TAG, "初始码 : " + code);
@@ -90,7 +120,33 @@ public class MainActivity extends AppCompatActivity {
         mIat.setParameter(SpeechConstant.VAD_EOS, "1000");
         //设置标点符号,设置为"0"返回结果无标点,设置为"1"返回结果有标点
         mIat.setParameter(SpeechConstant.ASR_PTT, "1");
+
     }
+
+    Callback recognizerCallback;
+
+    @ReactMethod
+    public void startRecognizer(Callback recognizerCallback) {
+        this.recognizerCallback = recognizerCallback;
+        //开始识别，并设置监听器
+        mIat.startListening(mRecognizerListener);
+    }
+
+    @ReactMethod
+    public void stopRecognizer() {
+        if (mIat != null) {
+            mIat.stopListening();
+            mIat.cancel();
+        }
+    }
+
+    @ReactMethod
+    public void release() {
+        if (mIat != null) {
+            mIat.destroy();
+        }
+    }
+
     /**
      * 听写监听器。
      */
@@ -126,9 +182,9 @@ public class MainActivity extends AppCompatActivity {
                 //message.what = 0x001;
                 //han.sendMessageDelayed(message,100);
                 //Log.d(TAG, "isLast = > " + results.getResultString());
-//                if (recognizerCallback != null) {
-//                    recognizerCallback.invoke("" + last);
-//                }
+                if (recognizerCallback != null) {
+                    recognizerCallback.invoke("" + last);
+                }
             }
         }
 
@@ -175,4 +231,9 @@ public class MainActivity extends AppCompatActivity {
         //mResultText.setSelection(mResultText.length());
         return resultBuffer.toString();
     }
+    
+    
+    
+    
+    
 }
